@@ -4,6 +4,7 @@ import { logger, setLogLevel } from "../utils/logger.js";
 import { loadConfig } from "../config/loader.js";
 import { buildServer } from "../server/mcp-server.js";
 import { runHttp, runStdio } from "../server/transport.js";
+import { startScheduler } from "../playlists/scheduler.js";
 
 const SERVER_NAME = "playlist-curator-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -28,6 +29,10 @@ export async function runServe(options: ServeOptions): Promise<void> {
 
   const server = buildServer({ name: SERVER_NAME, version: SERVER_VERSION }, config);
 
+  // Background jobs (daily rollover, weekly radio). The weekly tick is
+  // a no-op until Phase 5 wires the regenerator.
+  const scheduler = startScheduler(config);
+
   if (options.transport === "http") {
     const port = options.httpPort ?? config.transport.http_port;
     const handle = await runHttp(server, { port });
@@ -37,6 +42,7 @@ export async function runServe(options: ServeOptions): Promise<void> {
     // cleanly so half-finished SSE streams flush before exit.
     const shutdown = async (signal: string): Promise<void> => {
       logger.info(`Received ${signal}, shutting down...`);
+      scheduler.stop();
       await handle.close().catch((err) => logger.warn("close() failed", err));
       process.exit(0);
     };
@@ -52,5 +58,6 @@ export async function runServe(options: ServeOptions): Promise<void> {
   // happens so the parent process doesn't see a hung child.
   const { done } = await runStdio(server);
   await done;
+  scheduler.stop();
   logger.info("Stdio client disconnected, exiting.");
 }
