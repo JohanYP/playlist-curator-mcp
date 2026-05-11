@@ -7,6 +7,7 @@ import type { Config } from "../config/schema.js";
 import { registerSearchTools } from "../tools/search.js";
 import { registerPlaylistTools } from "../tools/playlist.js";
 import { registerNowPlayingTools } from "../tools/now-playing.js";
+import { registerDownloadTools } from "../tools/download.js";
 
 export interface ServerInfo {
   name: string;
@@ -25,6 +26,7 @@ export function buildServer(info: ServerInfo, config: Config): McpServer {
   // and CRUD second mirrors the typical mental model.
   registerSearchTools(server, config);
   registerPlaylistTools(server, config);
+  registerDownloadTools(server, config);
   registerNowPlayingTools(server, config);
 
   return server;
