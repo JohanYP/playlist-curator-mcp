@@ -5,6 +5,7 @@ import { loadConfig } from "../config/loader.js";
 import { buildServer } from "../server/mcp-server.js";
 import { runHttp, runStdio } from "../server/transport.js";
 import { startScheduler } from "../playlists/scheduler.js";
+import { regenerateWeeklyRadio } from "../playlists/weekly-radio.js";
 
 const SERVER_NAME = "playlist-curator-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -29,9 +30,14 @@ export async function runServe(options: ServeOptions): Promise<void> {
 
   const server = buildServer({ name: SERVER_NAME, version: SERVER_VERSION }, config);
 
-  // Background jobs (daily rollover, weekly radio). The weekly tick is
-  // a no-op until Phase 5 wires the regenerator.
-  const scheduler = startScheduler(config);
+  // Background jobs. Daily rollover purges stale today playlists;
+  // weekly tick regenerates the auto-curated radio (Phase 5).
+  const scheduler = startScheduler(config, {
+    onWeeklyRadioTick: async () => {
+      const result = await regenerateWeeklyRadio(config);
+      logger.info(`[scheduler] weekly radio: ${result.status}, ${result.trackCount} tracks`);
+    },
+  });
 
   if (options.transport === "http") {
     const port = options.httpPort ?? config.transport.http_port;

@@ -9,6 +9,7 @@ import { registerPlaylistTools } from "../tools/playlist.js";
 import { registerNowPlayingTools } from "../tools/now-playing.js";
 import { registerDownloadTools } from "../tools/download.js";
 import { registerTodayTools } from "../tools/today.js";
+import { registerRadioTools } from "../tools/radio.js";
 
 export interface ServerInfo {
   name: string;
@@ -29,6 +30,7 @@ export function buildServer(info: ServerInfo, config: Config): McpServer {
   registerPlaylistTools(server, config);
   registerDownloadTools(server, config);
   registerTodayTools(server, config);
+  registerRadioTools(server, config);
   registerNowPlayingTools(server, config);
 
   return server;
