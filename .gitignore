@@ -1,0 +1,33 @@
+# Node
+node_modules/
+dist/
+coverage/
+npm-debug.log*
+*.tgz
+
+# Tests
+.vitest-temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Local config / secrets (the config file holds Navidrome credentials)
+config.json
+*.local.json
+.env
+.env.local
+
+# SQLite history (per-instance state)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+logs/
