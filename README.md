@@ -1,76 +1,117 @@
 # playlist-curator-mcp
 
-> Curation routines on top of Navidrome — daily ephemeral playlists, weekly auto-curated radio, and YouTube download-on-miss. **Complementary** to [`navidrome-mcp`](https://github.com/Blakeem/Navidrome-MCP).
+> Curation routines on top of [Navidrome](https://www.navidrome.org/) — daily ephemeral playlists, weekly auto-curated radio, and YouTube download-on-miss. **Complementary** to [`navidrome-mcp`](https://github.com/Blakeem/Navidrome-MCP) — both can be installed alongside each other.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node-20%2B-339933)](https://nodejs.org)
+[![npm](https://img.shields.io/badge/npm-playlist--curator--mcp-CB3837)](https://www.npmjs.com/package/playlist-curator-mcp)
 
-A minimal MCP server that adds **three things** to any Navidrome-driven setup:
+An MCP server that gives any MCP-compatible assistant (Claude Desktop, OpenCode, OpenClaw, Cline, Continue.dev, etc.) the ability to **curate music** against an existing Navidrome library. Tell your assistant *"add Holocene by Bon Iver to today's playlist"* — if the track is in your library, it's added; if not, the server downloads it from YouTube via `yt-dlp`, waits for Navidrome to index it, and then adds it. At midnight today's playlist auto-deletes unless you said "save it as X". Mondays you wake up to a fresh auto-curated radio playlist.
 
-1. **`today` playlist** that auto-rolls over at midnight unless you save it.
-2. **`Radio Semana <N>`** weekly playlist regenerated every Monday from your listening history.
-3. **YouTube download-on-miss** via yt-dlp — if you ask to add a track that isn't in your library, the server downloads it and drops it where Navidrome will index it.
+This is a **portable npm package + CLI binary**. No Docker, no compose stack — install via `npx`/`npm` and point your MCP client at it. Audio plays in whatever Subsonic client you already use (Symfonium, DSub, Navidrome web…); this server only curates.
 
-For everything else (search, basic playlist CRUD, lyrics, radio stations, library info) install the excellent [`navidrome-mcp`](https://github.com/Blakeem/Navidrome-MCP) alongside this one. They both talk to your same Navidrome server independently.
-
-## Status
-
-🚧 **V0.1.0 in development.** Phase 0 (skeleton + CLI) is in. Phases 1-8 to follow. See [the plan](https://github.com/JohanYP/playlist-curator-mcp/blob/main/docs/ROADMAP.md) once it's published.
-
-## Quick start (preview — won't fully work until Phase 2)
+## Quick start (Claude Desktop)
 
 ```bash
-npx -y playlist-curator-mcp init       # interactive wizard (Phase 6)
-npx -y playlist-curator-mcp doctor     # sanity checks
-npx -y playlist-curator-mcp serve      # default: stdio transport
+# 1. Make sure yt-dlp and ffmpeg are on your PATH.
+#    Linux:   apt install yt-dlp ffmpeg   (or pip install -U yt-dlp)
+#    macOS:   brew install yt-dlp ffmpeg
+#    Windows: winget install yt-dlp ffmpeg
+
+# 2. Add to ~/.config/Claude/claude_desktop_config.json (macOS:
+#    ~/Library/Application Support/Claude/claude_desktop_config.json):
 ```
 
-### Claude Desktop config (when Phase 2 lands)
-
 ```jsonc
-// ~/.config/Claude/claude_desktop_config.json
 {
   "mcpServers": {
-    "navidrome-curator": {
+    "playlist-curator": {
       "command": "npx",
       "args": ["-y", "playlist-curator-mcp@latest"],
       "env": {
         "NAVIDROME_URL": "http://192.168.1.10:4533",
         "NAVIDROME_USER": "you",
-        "NAVIDROME_PASS": "...",
+        "NAVIDROME_PASS": "your-password",
         "LIBRARY_ROOT": "/srv/music"
       }
-    },
-    "navidrome": {
-      "command": "npx",
-      "args": ["-y", "navidrome-mcp@latest"],
-      "env": { /* same Navidrome creds */ }
     }
   }
 }
 ```
 
-## Pre-requisites
+Restart Claude Desktop. Open a chat and try:
 
-- Node 20+
-- `yt-dlp` and `ffmpeg` on `PATH` (required for downloads)
-- A running Navidrome instance (any version with the standard Subsonic API)
+> *"List my playlists."* → calls `playlist_list`
+> *"Add Holocene by Bon Iver to today's playlist."* → calls `today_add`, downloads if missing
+> *"Save today's playlist as 'rainy monday'."* → calls `today_save_as`
+> *"What's the weekly radio looking like?"* → calls `weekly_radio_get`
 
-## What it exposes (target V1 tool surface)
+Need other clients? See:
+- [docs/INTEGRATION_CLAUDE_DESKTOP.md](docs/INTEGRATION_CLAUDE_DESKTOP.md)
+- [docs/INTEGRATION_OPENCODE.md](docs/INTEGRATION_OPENCODE.md) (HTTP transport)
+- [docs/INTEGRATION_OPENCLAW.md](docs/INTEGRATION_OPENCLAW.md)
 
-| Tool | Purpose |
+## What it gives the assistant
+
+| Tool | What it does |
 |---|---|
-| `today_get` | List tracks in today's ephemeral playlist |
-| `today_add(query)` | Add to today (with download-on-miss) |
-| `today_save_as(name)` | Promote today to a permanent playlist |
-| `today_clear` | Empty today's playlist |
-| `weekly_radio_get` | Current auto-curated weekly playlist |
-| `weekly_radio_regenerate` | Force regenerate now |
-| `music_download(query \| url, source?)` | Download a track from external source |
+| `music_search(query, limit?)` | Search the local Navidrome library |
+| `playlist_list()` | Enumerate all playlists |
+| `playlist_get(name)` | Tracks of a playlist |
+| `playlist_create(name)` | Create empty playlist (refuses duplicates) |
+| `playlist_rename(from, to)` | Rename |
+| `playlist_delete(name)` | Delete permanently |
+| `playlist_add(playlist, query, source?)` | High-level: search → download-on-miss → add |
+| `playlist_add_tracks(playlist, track_ids)` | Low-level: append by id |
+| `playlist_remove_tracks(playlist, positions)` | Remove by position |
+| `today_get()` | Today's ephemeral playlist |
+| `today_add(query, source?)` | Add to `today (YYYY-MM-DD)` with download-on-miss |
+| `today_save_as(name)` | Promote today to permanent |
+| `today_clear()` | Empty today |
+| `weekly_radio_get()` | This week's `Radio Semana <YYYY-Www>` |
+| `weekly_radio_regenerate()` | Force regenerate now |
+| `music_download(query \| url, source?)` | Download without adding to any playlist |
+| `status_now_playing()` | What's playing across connected Subsonic clients |
+
+Full schemas and example interactions in [docs/MCP_TOOLS.md](docs/MCP_TOOLS.md).
+
+## Standalone CLI
+
+If you prefer to run the server yourself (HTTP mode for OpenCode-style clients, or just for testing):
+
+```bash
+npm i -g playlist-curator-mcp
+
+navidrome-mcp init        # interactive wizard (writes ~/.config/playlist-curator-mcp/config.json)
+navidrome-mcp doctor      # sanity checks: yt-dlp, ffmpeg, library, Navidrome ping
+navidrome-mcp serve --transport http --port 4098
+```
+
+> Despite the npm package being `playlist-curator-mcp`, the bin is `navidrome-mcp` for ergonomic typing. (Actually the bin matches the package name — `playlist-curator-mcp ...` — there's no aliasing.)
+
+Configuration in `$XDG_CONFIG_HOME/playlist-curator-mcp/config.json`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## Why a separate MCP
 
-`navidrome-mcp` already covers ~50 tools for search, CRUD, lyrics, radio stations, etc. This server intentionally stays small and focuses on the workflows that don't exist there yet. "Do one thing well" — both servers stay simple and the user picks both.
+[`navidrome-mcp`](https://github.com/Blakeem/Navidrome-MCP) already covers ~50 tools for general Navidrome interaction — search, playlist CRUD, lyrics, radio stations, "now playing", etc. This server intentionally stays small and focuses on workflows that don't exist there yet: **ephemeral routines** (today's playlist), **auto-curation** (weekly radio), and **download-on-miss** (yt-dlp). Both servers talk to your same Navidrome independently; you install whichever you need.
+
+## Pre-requisites
+
+- **Node 20+** (or just `npx` — the server downloads itself the first time).
+- **yt-dlp** and **ffmpeg** on `PATH`. Both are needed for downloads.
+- A **Navidrome** instance you can reach over HTTP (any version with the standard Subsonic API).
+
+## V1.x roadmap
+
+Out of scope for V1; tracked in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#v1x-roadmap).
+- More download sources: Deezer (ARL), Spotify+spotdl, SoundCloud, Bandcamp
+- Scrobble-history-based weekly radio (skip-weighted, recency-aware)
+- Fuzzy query matching ("ese tema lento de los strokes")
+- Playback control via Subsonic Jukebox (V2 — only if there's demand)
+
+## Contributing
+
+PRs and issues welcome at [github.com/JohanYP/playlist-curator-mcp](https://github.com/JohanYP/playlist-curator-mcp). Tests in `tests/`, run with `npm test`. TypeScript strict mode is non-negotiable.
 
 ## License
 
